@@ -1,6 +1,8 @@
 ## README
 
-This small script allows you to merge data from one or more databases with identical schema into another database called "destination db";
+This small script allows you to merge two mysql databases (or more) 
+As a result you'll have your data copied into another database called "destination db";
+
 It solves some important problems with data integrity across different databases like:
 * Primary Keys conflict
 * Keeping Foreign Keys up to date
@@ -19,6 +21,7 @@ It solves some important problems with data integrity across different databases
 4. run as: python run.py
 
 *It will rollback all changes in case of any error, but you should backup all your data before using it anyway!*
+*PK values won't remain the same, but all foreign keys and looks-like-it's-FK columns will be updated accordingly*
 
 ###What it does in details:
 1. Maps all tables, columns, relations and unique/primary indexes

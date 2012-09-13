@@ -1,12 +1,16 @@
 from mysql_merge.utils import MiniLogger
 
 merged_dbs = [
-  {'db': 'specprawnik'},
-  #{'db': 'db2'},
+  {'db': 'db1'},
+  # {'db': 'db2'},
+  # {'db': 'db2', 'host': 'yourhost.com', 'user': 'user'},
+  # ...
 ]
 
 destination_db = {
-  'db': 'specprawnik_new'
+  'db': 'db_new'
+  'host': 'yourhost.com',
+  'user': 'user',
 }
 
 information_schema = {
@@ -16,6 +20,6 @@ information_schema = {
 common_data = {
   'host': '127.0.0.1',
   'user': 'root',
-  'password': 'qwewsx21'
+  'password': ''
 }
 
