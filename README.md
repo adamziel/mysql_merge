@@ -1,8 +1,8 @@
 mysql_merge
 =============================
 
-This small script allows you to merge two mysql databases (or more) 
-As a result you'll have your data copied into another database called "destination db";
+This small script allows you to merge two mysql databases (or more). 
+As a result you'll have your data copied into specified database.
 
 It solves some important problems with data integrity across different databases like:
 * Primary Keys conflict
