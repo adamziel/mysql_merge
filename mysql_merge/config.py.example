@@ -21,4 +21,6 @@ common_data = {
   'password': ''
 }
 
+ignore_unlisted = False
+default_mapping = { }
 verbose = True
