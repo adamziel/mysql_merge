@@ -9,7 +9,7 @@ It solves some important problems with data integrity across different databases
 * Keeping Foreign Keys up to date (sometimes even those not marked as foreign keys in the database schema!)
 * Dealing with conflicting unique indexes
 * Minor schema differences between databases
-... and a few more
+* ... and a few more
 
 ###To use:
 1. clone this repo (obviously)
@@ -19,7 +19,7 @@ It solves some important problems with data integrity across different databases
 5. run as: python run.py
 
 *This script will change some of your PK's. It will rollback all changes in case of any error, but you should backup all your data before using it anyway!*
-*While PK values will not remain the same, but all foreign keys and looks-like-it's-FK columns will be updated accordingly*
+*While PK values will not remain the same, all foreign keys and looks-like-it's-FK columns will be updated accordingly*
 
 ###What it does in details:
 1. Maps all tables, columns, relations and unique/primary indexes
