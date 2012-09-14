@@ -31,10 +31,6 @@ class Mapper(object):
     
     self._conn = conn
     self._cursor = self._conn.cursor()
-    
-  def __del__(self):
-    if self._cursor:
-      self._cursor.close()
 
   def map_db(self):
     self._map_describe()
