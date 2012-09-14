@@ -6,23 +6,20 @@ As a result you'll have your data copied into specified database.
 
 It solves some important problems with data integrity across different databases like:
 * Primary Keys conflict
-* Keeping Foreign Keys up to date
-* Moving conflicting unique indexes
+* Keeping Foreign Keys up to date (sometimes even those not marked as foreign keys in the database schema!)
+* Dealing with conflicting unique indexes
+* Minor schema differences between databases
 ... and a few more
-
-###It solves:
-* Conflicting Primary Keys
-* Unique indexes
-* Foreign keys
 
 ###To use:
 1. clone this repo (obviously)
 2. copy file mysql_merge/config.py.example mysql_merge/config.py
 3. setup your database details
-4. run as: python run.py
+4. *make sure your destination db already have schema loaded - this script does not transfer a schema!*
+5. run as: python run.py
 
-*It will rollback all changes in case of any error, but you should backup all your data before using it anyway!*
-*PK values won't remain the same, but all foreign keys and looks-like-it's-FK columns will be updated accordingly*
+*This script will change some of your PK's. It will rollback all changes in case of any error, but you should backup all your data before using it anyway!*
+*While PK values will not remain the same, but all foreign keys and looks-like-it's-FK columns will be updated accordingly*
 
 ###What it does in details:
 1. Maps all tables, columns, relations and unique/primary indexes
