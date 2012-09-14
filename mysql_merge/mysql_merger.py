@@ -18,11 +18,13 @@ class Merger(object):
   _destination_db = None
   _source_db = None
   
-  _increment_step = property(lambda self: self._counter * 1000000)
+  _increment_step = 0
+  _increment_value = property(lambda self: self._counter * _increment_step)
   
   def __init__(self, destination_db_map, source_db, destination_db, config, counter, logger):
     self._destination_db_map = destination_db_map
     
+    self._increment_step = config.increment_step
     self._source_db = source_db
     self._destination_db = destination_db
     self._config = config
@@ -148,10 +150,10 @@ class Merger(object):
     for table_name, table_map in self._db_map.items():
       for col_name, col_data in table_map['primary'].items():
 	try:
-	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` + %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_step }
+	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` + %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_value }
 	  cur.execute(self._logger.qs)
 	except Exception,e:
-	  handle_exception("There was an error while updating PK `%s`.`%s` to %d + pk_value" % (table_name, col_name, self._increment_step), e, self._conn)
+	  handle_exception("There was an error while updating PK `%s`.`%s` to %d + pk_value" % (table_name, col_name, self._increment_value), e, self._conn)
   
   def map_pks_to_target_on_unique_conflict(self):
     cur = self._cursor
@@ -259,8 +261,8 @@ class Merger(object):
     for table_name, table_map in self._db_map.items():
       for col_name, col_data in table_map['primary'].items():
 	try:
-	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` - %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_step }
+	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` - %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_value}
 	  cur.execute(self._logger.qs)
 	except Exception,e:
-	  handle_exception("There was an error while updating PK `%s`.`%s` to -%d + pk_value" % (table_name, col_name, self._increment_step), e, self._conn)
+	  handle_exception("There was an error while updating PK `%s`.`%s` to -%d + pk_value" % (table_name, col_name, self._increment_value), e, self._conn)
   
