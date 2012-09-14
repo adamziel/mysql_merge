@@ -26,7 +26,7 @@ It solves some important problems with data integrity across different databases
 2. If some FK-like columns are found (*_id) but they are not marked as PK - user is asked to specify appropriate mappings
 3. Change all tables to InnoDB
 4. Alter all tables and modify FOREIGN KEYS to ON UPDATE CASCADE
-5. Update all numerical PKs to PK + iteration_nb * 1000000 ( so they don't conflict in the destination database )
+5. Update all numerical PKs to PK + iteration_nb * increment_step ( so they don't conflict in the destination database; increment_step is easily customizable in config.py )
 6. Detect which unique values conflicts with data in the destination db
 7. Update PKs on those rows to corresponding PKs from the destination db
 8. Copy data from all tables to the destination db
