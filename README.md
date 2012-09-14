@@ -7,6 +7,7 @@ As a result you'll have your data copied into specified database.
 It solves some important problems with data integrity across different databases like:
 * Primary Keys conflict
 * Keeping Foreign Keys up to date (sometimes even those not marked as foreign keys in the database schema!)
+* Fixing your orphaned rows (depending on configuration: with mapping, setting to null or deleting)
 * Dealing with conflicting unique indexes
 * Minor schema differences between databases
 * ... and a few more
@@ -26,11 +27,12 @@ It solves some important problems with data integrity across different databases
 2. If some FK-like columns are found (*_id) but they are not marked as PK - user is asked to specify appropriate mappings
 3. Change all tables to InnoDB
 4. Alter all tables and modify FOREIGN KEYS to ON UPDATE CASCADE
-5. Update all numerical PKs to PK + iteration_nb * increment_step ( so they don't conflict in the destination database; increment_step is easily customizable in config.py )
-6. Detect which unique values conflicts with data in the destination db
-7. Update PKs on those rows to corresponding PKs from the destination db
-8. Copy data from all tables to the destination db
-9. Rolls back 5th step
+5. Resolve orphaned rows - strategy depends on configuration
+6. Update all numerical PKs to PK + iteration_nb * increment_step ( so they don't conflict in the destination database; increment_step is easily customizable in config.py )
+7. Detect which unique values conflicts with data in the destination db
+8. Update PKs on those rows to corresponding PKs from the destination db
+9. Copy data from all tables to the destination db
+10. Rolls back 6th step
 
 ###Limitations:
 * Completely not intended to work with composite primary/foreign key other than M2M intermediary tables
