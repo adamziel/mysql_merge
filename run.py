@@ -18,6 +18,9 @@ if len(config.merged_dbs) == 0:
 #####################################################################
 
 # STEP 1 - map database schema, relations and indexes
+print "STEP 1. Initial mapping of DB schema"
+print " -> 1.1 First merged db"
+
 mapped_db = config.merged_dbs[0]
 conn = create_connection(mapped_db, config.common_data)
 
@@ -26,10 +29,25 @@ db_map = mapper.map_db()
 
 conn.close()
 
-# STEP 2 - map all the fields that looks like FKs but aren't stored as ones
+print " -> 1.2 Destination db"
+
+conn = create_connection(config.destination_db, config.common_data)
+
+mapper = Mapper(conn, config.destination_db['db'], MiniLogger())
+destination_db_map = mapper.map_db()
+
+conn.close()
+
+
+
+print ""
+print "STEP 2. Map all the fields that looks like FKs but aren't stored as ones"
 map_fks(db_map)
 
-# STEP 3 - actually merge all the databases
+
+print ""
+print "STEP 3. Actually merge all the databases"
+print ""
 counter = 0
 for source_db in config.merged_dbs:
  counter = counter + 1
@@ -40,12 +58,13 @@ for source_db in config.merged_dbs:
   destination_db_tpl = copy.deepcopy(config.common_data)
   destination_db_tpl.update(config.destination_db)
 
-  merger = Merger(db_map, source_db_tpl, destination_db_tpl, config, counter, MiniLogger())
+  merger = Merger(destination_db_map, source_db_tpl, destination_db_tpl, config, counter, MiniLogger())
   merger.merge()
   
-  print "Your DBs was merged successfully"
 
  except Exception,e:
-   handle_exception("There was an unexpected error while merging db %s" % source_db['db'], e, merger._conn)
+   conn = merger._conn if globals().has_key('merger') else None
+   handle_exception("There was an unexpected error while merging db %s" % source_db['db'], e, conn)
    
+print "Merge is finished"
    

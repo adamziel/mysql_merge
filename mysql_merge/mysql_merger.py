@@ -1,10 +1,16 @@
-from mysql_merge.utils import create_connection, handle_exception
+from mysql_merge.utils import MiniLogger, create_connection, handle_exception
+from mysql_merge.mysql_mapper import Mapper
+from mysql_merge.utils import map_fks, lists_diff
 
 class Merger(object):
   
   _conn = None
   _cursor = None
-  _dbMap = None
+  
+  _source_mapper = None
+  _db_map = None
+  _destination_db_map = None
+  
   _config = None
   _logger = None
   _counter = 0
@@ -14,10 +20,11 @@ class Merger(object):
   
   _increment_step = property(lambda self: self._counter * 1000000)
   
-  def __init__(self, db_map, source_db, destination_db, config, counter, logger):
+  def __init__(self, destination_db_map, source_db, destination_db, config, counter, logger):
+    self._destination_db_map = destination_db_map
+    
     self._source_db = source_db
     self._destination_db = destination_db
-    self._db_map = db_map
     self._config = config
     self._counter = counter
     self._logger = logger
@@ -26,6 +33,23 @@ class Merger(object):
     self._cursor = self._conn.cursor()
   
     self.prepare_db()
+    
+    self._logger.log("Processing database '%s'..." % self._source_db['db'])
+    # Indexes may be named differently in each database, therefore we need
+    # to remap them
+    
+    self._logger.log(" -> 1/2 Re-mapping database")
+    self._source_mapper = Mapper(self._conn, source_db['db'], MiniLogger(), verbose=False)
+    db_map = self._source_mapper.map_db()
+    
+    self._logger.log(" -> 2/2 Re-applying FKs mapping to current database schema - in case execution broke before")
+    map_fks(db_map, False)
+    
+    self._db_map = db_map
+    
+    # Remove from the map tables that are missing in destination db
+    #for table in lists_diff(self._destination_db, self.get_overlapping_tables()):
+    #  del self._destination_db[table]
     
   def prepare_db(self):
     cur = self._cursor
@@ -46,15 +70,35 @@ class Merger(object):
   def merge(self):
     self._conn.begin()
     
+    self._logger.log(" ")
+    self._logger.log("Processing database '%s'..." % self._source_db['db'])
+    
+    self._logger.log(" -> 1/8 Converting tables to InnoDb")
     self.convert_tables_to_innodb()
+    
+    self._logger.log(" -> 2/8 Converting FKs to UPDATE CASCADE")
     self.convert_fks_to_update_cascade()
+    
+    self._logger.log(" -> 3/8 Converting mapped FKs to real FKs")
     self.convert_mapped_fks_to_real_fks()
+    
+    self._logger.log(" -> 4/8 Incrementing PKs")
     self.increment_pks()
+    
+    self._logger.log(" -> 5/8 Mapping pk in case of uniques conflict")
     self.map_pks_to_target_on_unique_conflict()
+    
+    self._logger.log(" -> 6/8 Copying data to the destination db")
     self.copy_data_to_target()
+    
+    self._logger.log(" -> 7/8 Decrementing pks")
     self.rollback_pks()
     
+    self._logger.log(" -> 8/8 Committing changes")
     self._conn.commit()
+    self._logger.log("----------------------------------------")
+  
+  
   
   def convert_tables_to_innodb(self):
     cur = self._cursor
@@ -91,7 +135,7 @@ class Merger(object):
       for col_name, fk_data in table_map['fk_create'].items():
 	constraint_name = ""
 	try:
-	  constraint_name = "%s_%s_dbmerge" % (table_name, col_name)
+	  constraint_name = "%s_%s_dbmerge" % (table_name[0:25], col_name[0:25]) # max length of constraint name is 64
 	  self._logger.qs = "alter table `%s` add foreign key `%s` (`%s`) references `%s` (`%s`) on update cascade" % ( table_name, constraint_name, col_name, fk_data['parent'], fk_data['parent_col'])
 	  cur.execute(self._logger.qs)
 	except Exception,e:
@@ -128,7 +172,7 @@ class Merger(object):
 	  # Get all rows that have the same unique value as our destination table
 	  self._logger.qs = "SELECT t1.`%(pk_col)s` as old_pk, t2.`%(pk_col)s` as new_pk " \
 	      "FROM `%(table)s` t1 " \
-	      "LEFT JOIN `%(destination_db)s`.`%(table)s` t2 ON (%(join)s)" \
+	      "LEFT JOIN `%(destination_db)s`.`%(table)s` t2 ON (%(join)s) " \
 	      "WHERE t2.`%(pk_col)s` is not null" % {
 		  'destination_db': self._destination_db['db'],
 		  "table": table_name, 
@@ -172,6 +216,11 @@ class Merger(object):
   def copy_data_to_target(self):
     cur = self._cursor
     
+    diff_tables = self._source_mapper.get_non_overlapping_tables(self._destination_db_map)
+    for k,v in diff_tables.items():
+      if len(v):
+	self._logger.log("----> Skipping some missing tables in %s database: %s; " % (k,v))
+	
     # Copy all the data to destination table
     for table_name, table_map in self._db_map.items():
       try:
@@ -181,11 +230,22 @@ class Merger(object):
 	    'pk_col': table_map['primary'].keys()[0],
 	    'ids': ",".join(table_map['pk_changed_to_resolve_unique_conficts'])
 	  }
-	self._logger.qs = "INSERT INTO `%(destination_db)s`.`%(table)s` SELECT * FROM `%(source_db)s`.`%(table)s` %(where)s" % {
+	  
+	diff_columns = self._source_mapper.get_non_overlapping_columns(self._destination_db_map, table_name)
+	for k,v in diff_columns.items():
+	  if len(v):
+	    self._logger.log("----> Skipping some missing columns in %s database in table %s: %s; " % (k,table_name,v))
+	
+	columns = self._source_mapper.get_overlapping_columns(self._destination_db_map, table_name)
+	if not len(columns):
+	  raise Exception("Table %s have no intersecting column in merged database and destination database")
+	
+	self._logger.qs = "INSERT INTO `%(destination_db)s`.`%(table)s` (%(columns)s) SELECT %(columns)s FROM `%(source_db)s`.`%(table)s` %(where)s" % {
 	  'destination_db': self._destination_db['db'],
 	  'source_db': self._source_db['db'],
 	  'table': table_name,
-	  'where': where
+	  'where': where,
+	  'columns': "`%s`" % ("`,`".join(columns))
 	}
 	cur.execute(self._logger.qs)
       except Exception,e:
