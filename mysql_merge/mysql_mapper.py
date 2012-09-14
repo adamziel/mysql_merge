@@ -19,24 +19,30 @@ class Mapper(object):
   _conn = None
   _cursor = None
   _logger = None
+  _verbose = True
   
-  def __init__(self, conn, db_name, logger):
+  def __init__(self, conn, db_name, logger, verbose=True):
+    self.db_map = {}
+    
+    self._verbose = verbose
+    
     self._db_name = db_name
     self._logger = logger
     
     self._conn = conn
     self._cursor = self._conn.cursor()
-  
+    
   def __del__(self):
     if self._cursor:
       self._cursor.close()
-  
+
   def map_db(self):
     self._map_describe()
     self._map_relations()
     self._map_indexes()
     
     return self.db_map
+  
   
   def _map_describe(self):
     cur = self._cursor
@@ -69,17 +75,19 @@ class Mapper(object):
 	  'columns':  True
 	}
 	
-	if field['Key'] == 'PRI' and not is_int:
-	  print "Column `%s`.`%s` is a non-numeric primary key. It is not possible to " \
-		"auto-handle it, therefore there could be some problems with it. Please " \
-		"make sure its value is unique throughout all merged databases." % (table, field['Field'])
-		
+	if self._verbose and field['Key'] == 'PRI' and not is_int:
+	  self._logger.log (
+	    "Column `%s`.`%s` is a non-numeric primary key. It is not possible to " \
+	    "auto-handle it, therefore there could be some problems with it. Please " \
+	    "make sure its value is unique throughout all merged databases." % (table, field['Field'])
+	  )
 	for key, should_append in append_conditions.items():
 	  if should_append:
 	    field['is_int'] = is_int
 	    table_map[key][field['Field']] = field
       
       self.db_map[table] = table_map
+    
       
   def _map_relations(self):
     cur = self._cursor
