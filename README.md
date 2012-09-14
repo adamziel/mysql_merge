@@ -38,4 +38,5 @@ It solves some important problems with data integrity across different databases
 * Non-FK values won't change their value (like non-fk column user_id that wasn't specified in step 2; all simulated-fks)
 * Conflicting non-numeric PKs will stop the script with an appropriate error message
 * MyISAM tables will be converted to InnoDB, script won't continue on failure
+* This is not meant to deal with any triggers, please turn them off
 * ... probably there are more :)
