@@ -19,7 +19,7 @@ class Merger(object):
   _source_db = None
   
   _increment_step = 0
-  _increment_value = property(lambda self: self._counter * _increment_step)
+  _increment_value = property(lambda self: self._counter * self._increment_step)
   
   def __init__(self, destination_db_map, source_db, destination_db, config, counter, logger):
     self._destination_db_map = destination_db_map
