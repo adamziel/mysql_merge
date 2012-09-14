@@ -43,6 +43,56 @@ class Mapper(object):
     
     return self.db_map
   
+  """
+    Returns list of overlapping tables in merged database 
+    and destination database.
+    
+    @return tuple of strings
+  """
+  def get_overlapping_tables(self, destination_map):
+    source_tables = self.db_map.keys()
+    dest_tables = destination_map.keys()
+    return [table for table in source_tables if table in dest_tables]
+    
+  """
+    Returns list of not overlapping tables in merged database 
+    and destination database.
+    
+    @return tuple of strings
+  """
+  def get_non_overlapping_tables(self, destination_map):
+    source_tables = self.db_map.keys()
+    dest_tables = destination_map.keys()
+    return {
+      'dest':   [c for c in source_tables if c not in dest_tables],
+      'source': [c for c in dest_tables if c not in source_tables]
+    }
+    
+  """
+    Returns list of overlapping columns in merged database 
+    and destination database.
+    
+    @return tuple of strings
+  """
+  def get_overlapping_columns(self, destination_map, table):
+    source_columns = self.db_map[table]['columns'].keys()
+    dest_columns = destination_map[table]['columns'].keys()
+    return [col for col in source_columns if col in dest_columns]
+  
+  """
+    Returns list of not overlapping columns in merged database 
+    and destination database.
+    
+    @return dict { 'source: [...], 'destination': '... }
+  """
+  def get_non_overlapping_columns(self, destination_map, table):
+    source_columns = self.db_map[table]['columns'].keys()
+    dest_columns = destination_map[table]['columns'].keys()
+    
+    return {
+      'dest':   [c for c in source_columns if c not in dest_columns],
+      'source': [c for c in dest_columns if c not in source_columns]
+    }
   
   def _map_describe(self):
     cur = self._cursor
