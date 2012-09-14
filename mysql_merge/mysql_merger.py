@@ -1,6 +1,8 @@
 from mysql_merge.utils import MiniLogger, create_connection, handle_exception
 from mysql_merge.mysql_mapper import Mapper
 from mysql_merge.utils import map_fks, lists_diff
+import MySQLdb
+import warnings
 
 class Merger(object):
   
@@ -18,6 +20,7 @@ class Merger(object):
   _destination_db = None
   _source_db = None
   
+  _orphaned_rows_update_values = {}
   _increment_step = 0
   _increment_value = property(lambda self: self._counter * self._increment_step)
   
@@ -25,6 +28,7 @@ class Merger(object):
     self._destination_db_map = destination_db_map
     
     self._increment_step = config.increment_step
+    self._orphaned_rows_update_values = config.orphaned_rows_update_values
     self._source_db = source_db
     self._destination_db = destination_db
     self._config = config
@@ -59,8 +63,12 @@ class Merger(object):
     self._logger.qs = "set names utf8"
     cur.execute(self._logger.qs)
     
-    self._logger.qs = "set foreign_key_checks=0"
-    cur.execute(self._logger.qs)
+    warnings.filterwarnings('error', category=MySQLdb.Warning)
+    
+  def _fk_checks(self, enable):
+    self._logger.qs = "set foreign_key_checks=%d" % (enable)
+    self._cursor.execute(self._logger.qs)
+
     
   def __del__(self):
     if self._cursor:
@@ -75,28 +83,39 @@ class Merger(object):
     self._logger.log(" ")
     self._logger.log("Processing database '%s'..." % self._source_db['db'])
     
-    self._logger.log(" -> 1/8 Converting tables to InnoDb")
+    self._fk_checks(False)
+    
+    self._logger.log(" -> 1/9 Converting tables to InnoDb")
     self.convert_tables_to_innodb()
     
-    self._logger.log(" -> 2/8 Converting FKs to UPDATE CASCADE")
+    self._logger.log(" -> 2/9 Converting FKs to UPDATE CASCADE")
     self.convert_fks_to_update_cascade()
     
-    self._logger.log(" -> 3/8 Converting mapped FKs to real FKs")
+    self._logger.log(" -> 3/9 Converting mapped FKs to real FKs")
     self.convert_mapped_fks_to_real_fks()
     
-    self._logger.log(" -> 4/8 Incrementing PKs")
+    self._logger.log(" -> 4/9 Nulling orphaned FKs")
+    self.null_orphaned_fks()
+    
+    self._fk_checks(True)
+    
+    self._logger.log(" -> 5/9 Incrementing PKs")
     self.increment_pks()
     
-    self._logger.log(" -> 5/8 Mapping pk in case of uniques conflict")
+    self._logger.log(" -> 6/9 Mapping pk in case of uniques conflict")
     self.map_pks_to_target_on_unique_conflict()
     
-    self._logger.log(" -> 6/8 Copying data to the destination db")
+    self._fk_checks(False)
+    
+    self._logger.log(" -> 7/9 Copying data to the destination db")
     self.copy_data_to_target()
     
-    self._logger.log(" -> 7/8 Decrementing pks")
-    self.rollback_pks()
+    self._fk_checks(True)
     
-    self._logger.log(" -> 8/8 Committing changes")
+    self._logger.log(" -> 8/9 Decrementing pks")
+    self.rollback_pks()
+        
+    self._logger.log(" -> 9/9 Committing changes")
     self._conn.commit()
     self._logger.log("----------------------------------------")
   
@@ -140,8 +159,37 @@ class Merger(object):
 	  constraint_name = "%s_%s_dbmerge" % (table_name[0:25], col_name[0:25]) # max length of constraint name is 64
 	  self._logger.qs = "alter table `%s` add foreign key `%s` (`%s`) references `%s` (`%s`) on update cascade" % ( table_name, constraint_name, col_name, fk_data['parent'], fk_data['parent_col'])
 	  cur.execute(self._logger.qs)
+	  
+	  self._db_map[table_name]['fk_host'][col_name] = fk_data
+	  del self._db_map[table_name]['fk_create'][col_name]
 	except Exception,e:
 	  handle_exception("There was an error while creating new FK `%s` on `%s`.`%s`" % (constraint_name, table_name, col_name), e, self._conn)
+
+  def null_orphaned_fks(self):
+    cur = self._cursor
+    
+    # Null orphaned FKs
+    mapping = self._orphaned_rows_update_values['columns']
+    
+    for table_name, table_map in self._db_map.items():
+      for col_name, fk_data in table_map['fk_host'].items():
+	params = {
+	  'child': table_name,
+	  'child_col': col_name,
+	  'parent': fk_data['parent'],
+	  'parent_col': fk_data['parent_col'],
+	  'value': mapping[col_name] if mapping.has_key(col_name) else "null" 
+	}
+	self._logger.qs = "UPDATE `%(child)s` c set c.`%(child_col)s`=%(value)s WHERE not exists (select * from `%(parent)s` p where p.`%(parent_col)s`=c.`%(child_col)s` limit 1)" % params
+	try:
+	  try:
+	    cur.execute(self._logger.qs)
+	  except MySQLdb.Warning, e:
+	    # If nulling failed, let's delete problematic rows
+	    self._logger.qs = "DELETE FROM `%(child)s` WHERE not exists (select * from `%(parent)s` p where p.`%(parent_col)s`=`%(child)s`.`%(child_col)s` limit 1)" % params
+	    cur.execute(self._logger.qs)
+	except Exception,e:
+	  handle_exception("There was an error while nulling orphaned FK on `%s`.`%s`" % (table_name, col_name), e, self._conn)
 
   def increment_pks(self):
     cur = self._cursor
@@ -149,6 +197,10 @@ class Merger(object):
     # Update all numeric PKs to ID + 1 000 000
     for table_name, table_map in self._db_map.items():
       for col_name, col_data in table_map['primary'].items():
+	# If current col is also a Foreign Key, we do not touch it
+	if table_map['fk_host'].has_key(col_name):
+	  continue
+	
 	try:
 	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` + %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_value }
 	  cur.execute(self._logger.qs)
@@ -242,7 +294,7 @@ class Merger(object):
 	if not len(columns):
 	  raise Exception("Table %s have no intersecting column in merged database and destination database")
 	
-	self._logger.qs = "INSERT INTO `%(destination_db)s`.`%(table)s` (%(columns)s) SELECT %(columns)s FROM `%(source_db)s`.`%(table)s` %(where)s" % {
+	self._logger.qs = "INSERT IGNORE INTO `%(destination_db)s`.`%(table)s` (%(columns)s) SELECT %(columns)s FROM `%(source_db)s`.`%(table)s` %(where)s" % {
 	  'destination_db': self._destination_db['db'],
 	  'source_db': self._source_db['db'],
 	  'table': table_name,
@@ -260,6 +312,9 @@ class Merger(object):
     # Return all PKs to thei previous state: ID - 1 000 000
     for table_name, table_map in self._db_map.items():
       for col_name, col_data in table_map['primary'].items():
+	if table_map['fk_host'].has_key(col_name):
+	  continue
+	
 	try:
 	  self._logger.qs = "UPDATE `%(table)s` SET `%(pk)s` = `%(pk)s` - %(step)d" % { "table": table_name, "pk": col_name, 'step': self._increment_value}
 	  cur.execute(self._logger.qs)

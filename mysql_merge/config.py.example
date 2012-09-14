@@ -40,7 +40,22 @@ common_data = {
 }
 
 """
-  A value used to inrement PKs before moving data.
+  All of this happens before any data is moved over:
+  
+  When dealing with orphaned rows - ones with Foreign Key value pointing
+  to nothing, default behavior is to null their value, and delete them 
+  on failure. However you can define default values for a certain column
+  names - script will try to UPDATE orphaned rows with a defined value
+  instead of setting to null or deleting.
+"""
+orphaned_rows_update_values = {
+  #'columns': {
+  #  'user_id': 1
+  #}
+}
+
+"""
+  A value used to increment PKs before moving data.
   One million is usually enough, however i any of your databases contains
   values higher than that - just increase it
 """
