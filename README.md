@@ -1,7 +1,7 @@
 mysql_merge
 =============================
 
-This small script allows you to merge two mysql databases (or more). 
+This small script allows you to merge two or more mysql databases with similar schema but different dataset. 
 As a result you'll have your data copied into specified database.
 
 It solves some important problems with data integrity across different databases like:
