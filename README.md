@@ -24,7 +24,7 @@ It solves some important problems with data integrity across different databases
 
 ###What it does in details:
 1. Maps all tables, columns, relations and unique/primary indexes
-2. If some FK-like columns are found (*_id) but they are not marked as PK - user is asked to specify appropriate mappings
+2. If some FK-like columns are found (*_id) but they are not marked as FK - user is asked if that should be treated as FK and if yes - where does it point to
 3. Change all tables to InnoDB
 4. Alter all tables and modify FOREIGN KEYS to ON UPDATE CASCADE
 5. Resolve orphaned rows - strategy depends on configuration
