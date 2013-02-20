@@ -73,6 +73,12 @@ verbose = True
 ignore_unlisted = False
 
 """
+  List of queries to execute against each database before
+  any processing is performed
+"""
+preprocess_queries = []
+
+"""
   How to map columns that look like FK but are not stored as ones.
   
   Format:
