@@ -211,7 +211,7 @@ class Merger(object):
                     'parent_col': fk_data['parent_col'],
                     'value': mapping[col_name] if mapping.has_key(col_name) else "null"
                 }
-                self._logger.qs = "UPDATE `%(child)s` c set c.`%(child_col)s`=%(value)s WHERE not exists (select * from `%(parent)s` p where p.`%(parent_col)s`=c.`%(child_col)s` limit 1)" % params
+                self._logger.qs = "UPDATE `%(child)s` c left join `%(parent)s` p on c.`%(child_col)s`=p.`%(parent_col)s` set c.`%(child_col)s`=%(value)s WHERE p.`%(parent_col)s` is null" % params
                 try:
                     try:
                         cur.execute(self._logger.qs)
