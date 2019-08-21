@@ -192,7 +192,7 @@ class Merger(object):
         cur = self._cursor
 
         # Null orphaned FKs
-        mapping = self._orphaned_rows_update_values['columns']
+        mapping = self._orphaned_rows_update_values.get('columns', {})
 
         for table_name, table_map in self._db_map.items():
             for col_name, fk_data in table_map['fk_host'].items():
