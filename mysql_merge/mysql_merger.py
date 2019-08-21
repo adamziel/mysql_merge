@@ -142,6 +142,14 @@ class Merger(object):
         # Convert all tables to InnoDB
         for table_name, table_map in self._db_map.items():
             try:
+                self._logger.qs = "select engine from information_schema.TABLES where table_schema = '%s' and table_name = '%s'" % (
+                    self._source_db['db'], table_name)
+                cur.execute(self._logger.qs)
+
+                data = cur.fetchone()
+                if data and data['engine'].lower() == 'innodb':
+                    continue
+
                 self._logger.qs = "alter table `%s` engine InnoDB" % (table_name)
                 cur.execute(self._logger.qs)
             #except _mysql_exceptions.OperationalError,e:
