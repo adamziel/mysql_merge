@@ -52,9 +52,9 @@ def handle_exception(custom_message, exception, connection=None):
     print ""
     print "-----------------------------------------------"
     print custom_message
-    if logger.qs:
+    if qs:
         print "Last query was: "
-        print logger.qs
+        print qs
     print "The error message is: "
     print exception
     print "The traceback is: "

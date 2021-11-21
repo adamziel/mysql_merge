@@ -142,6 +142,14 @@ class Merger(object):
         # Convert all tables to InnoDB
         for table_name, table_map in self._db_map.items():
             try:
+                self._logger.qs = "select engine from information_schema.TABLES where table_schema = '%s' and table_name = '%s'" % (
+                    self._source_db['db'], table_name)
+                cur.execute(self._logger.qs)
+
+                data = cur.fetchone()
+                if data and data['engine'].lower() == 'innodb':
+                    continue
+
                 self._logger.qs = "alter table `%s` engine InnoDB" % (table_name)
                 cur.execute(self._logger.qs)
             #except _mysql_exceptions.OperationalError,e:
@@ -192,7 +200,7 @@ class Merger(object):
         cur = self._cursor
 
         # Null orphaned FKs
-        mapping = self._orphaned_rows_update_values['columns']
+        mapping = self._orphaned_rows_update_values.get('columns', {})
 
         for table_name, table_map in self._db_map.items():
             for col_name, fk_data in table_map['fk_host'].items():
@@ -203,7 +211,7 @@ class Merger(object):
                     'parent_col': fk_data['parent_col'],
                     'value': mapping[col_name] if mapping.has_key(col_name) else "null"
                 }
-                self._logger.qs = "UPDATE `%(child)s` c set c.`%(child_col)s`=%(value)s WHERE not exists (select * from `%(parent)s` p where p.`%(parent_col)s`=c.`%(child_col)s` limit 1)" % params
+                self._logger.qs = "UPDATE `%(child)s` c left join `%(parent)s` p on c.`%(child_col)s`=p.`%(parent_col)s` set c.`%(child_col)s`=%(value)s WHERE p.`%(parent_col)s` is null" % params
                 try:
                     try:
                         cur.execute(self._logger.qs)
